@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useData } from '../state/DataContext';
 import { Link } from 'react-router-dom';
+import placeholderProduct from '../assets/images/placeholder-product.jpg';
 
 function Items() {
   const { items, fetchItems } = useData();
@@ -44,26 +45,39 @@ function Items() {
       <p className="text-gray-600">Loading...</p>
     </div>
   );
-
+  
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Items</h1>
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {items.map((item, index) => (
-          <Link 
-            key={item.id}
-            to={`/items/${item.id}`}
-            className={`block p-4 hover:bg-gray-50 transition-colors ${
-              index !== items.length - 1 ? 'border-b border-gray-200' : ''
-            }`}
-          >
-            <div className="flex justify-between items-center">
-              <span className="font-medium text-gray-900">{item.name}</span>
-              <span className="text-gray-500 text-sm">${item.price}</span>
+    <div className="bg-white">
+      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24 lg:max-w-7xl lg:px-8">
+        <div className="md:flex md:items-center md:justify-between">
+          <h2 className="text-2xl font-bold tracking-tight text-gray-900">Trending products</h2>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-4 md:gap-y-0 lg:gap-x-8">
+          {items.map((item, index) => {
+            
+            return(
+            <div key={item.id} className="group relative">
+              <div className="h-56 w-full overflow-hidden rounded-md bg-gray-200 group-hover:opacity-75 lg:h-72 xl:h-80">
+                <img alt={""} src={placeholderProduct} className="size-full object-cover" />
+              </div>
+              <h3 className="mt-4 text-sm text-gray-700">
+              <Link 
+                  key={item.id}
+                  to={`/items/${item.id}`}
+                  className={`block p-4 hover:bg-gray-50 transition-colors ${
+                    index !== items.length - 1 ? 'border-b border-gray-200' : ''
+                  }`}
+                >
+                  <span className="absolute inset-0" />
+                  {item.name}
+                </Link>
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">{item.category}</p>
+              <p className="mt-1 text-sm font-medium text-gray-900">{item.price}</p>
             </div>
-            <span className="text-gray-600 text-sm">{item.category}</span>
-          </Link>
-        ))}
+          )})}
+        </div>
       </div>
     </div>
   );
