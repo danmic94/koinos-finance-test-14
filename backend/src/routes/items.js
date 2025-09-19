@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const validateItem = require('../utils/items');
 const router = express.Router();
 const DATA_PATH = path.join(__dirname, '../../../data/items.json');
 
@@ -56,17 +57,33 @@ router.get('/:id', async (req, res, next) => {
 // POST /api/items
 router.post('/', async (req, res, next) => {
   try {
-    // TODO: Validate payload (intentional omission)
-    //   { "id": 3, "name": "Test Chair", "category": "Furniture", "price": 800 }
-    // Validate the payload id to be a number and unique to the data
-    // Validate the name to be a string and not empty
-    // Validate the category to be a string and not empty
-    // Validate the price to be a number and not negative
-    // For each failed validation build a JSON to return to the client with a bad request HTTP status code
-
     const item = req.body;
     const data = await readData();
-    item.id = Date.now();
+    
+    // Get existing IDs for uniqueness validation
+    const existingIds = data.map(existingItem => existingItem.id);
+    
+    // Validate the item
+    const validation = validateItem(item, existingIds);
+    
+    if (!validation.isValid) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.errors
+      });
+    }
+    
+    // Generate ID if not provided (common case for new items)
+    if (!item.id) {
+      // Find the highest existing ID and increment by 1
+      const maxId = data.length > 0 ? Math.max(...data.map(item => item.id)) : 0;
+      item.id = maxId + 1;
+    }
+    
+    // Trim whitespace from string fields
+    item.name = item.name.trim();
+    item.category = item.category.trim();
+    
     data.push(item);
     await writeData(data);
     res.status(201).json(item);
