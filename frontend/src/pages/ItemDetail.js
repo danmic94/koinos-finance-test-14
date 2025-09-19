@@ -1,17 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { buildApiUrl } from '../utils/api';
 
 function ItemDetail() {
   const { id } = useParams();
   const [item, setItem] = useState(null);
   const navigate = useNavigate();
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
-    fetch('/api/items/' + id)
-      .then(res => res.ok ? res.json() : Promise.reject(res))
-      .then(setItem)
-      .catch(() => navigate('/'));
-  }, [id, navigate]);
+    const fetchItemDetail = async (itemId) => {
+      try {
+        // Create new AbortController for this request
+        abortControllerRef.current = new AbortController();
+        
+        const response = await fetch(buildApiUrl(`/items/${itemId}`), {
+          signal: abortControllerRef.current.signal
+        });
+        
+        const data = await response.json();
+        if(!response.ok) {
+          throw new Error('Failed to fetch item');
+        } else {
+          setItem(data);
+        }
+      } catch (error) {
+        // Don't log errors for aborted requests
+        if (error.name !== 'AbortError') {
+          console.error(error);
+        }
+      }
+    };
+
+    fetchItemDetail(id);
+
+    // Cleanup function to abort request if component unmounts
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [id]); // Re-fetch when id changes
 
   if (!item) return <p>Loading...</p>;
 
