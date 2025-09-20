@@ -40,13 +40,23 @@ describe('Items Routes', () => {
       fs.writeFile.mockResolvedValue();
     });
 
-    test('should return all items when no query parameters', async () => {
+    test('should return paginated items when no query parameters', async () => {
       const response = await request(app)
         .get('/api/items')
         .expect(200);
 
-      expect(response.body).toHaveLength(3);
-      expect(response.body).toEqual(validItems);
+      expect(response.body).toHaveProperty('data');
+      expect(response.body).toHaveProperty('pagination');
+      expect(response.body.data).toHaveLength(3);
+      expect(response.body.data).toEqual(validItems);
+      expect(response.body.pagination).toEqual({
+        page: 1,
+        limit: 10,
+        total: 3,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false
+      });
     });
 
     test('should limit results when limit parameter is provided', async () => {
@@ -54,8 +64,10 @@ describe('Items Routes', () => {
         .get('/api/items?limit=2')
         .expect(200);
 
-      expect(response.body).toHaveLength(2);
-      expect(response.body).toEqual(validItems.slice(0, 2));
+      expect(response.body.data).toHaveLength(2);
+      expect(response.body.data).toEqual(validItems.slice(0, 2));
+      expect(response.body.pagination.limit).toBe(2);
+      expect(response.body.pagination.total).toBe(3);
     });
 
     test('should filter results when search query is provided', async () => {
@@ -63,8 +75,9 @@ describe('Items Routes', () => {
         .get('/api/items?q=laptop')
         .expect(200);
 
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0].name).toBe('Test Laptop');
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].name).toBe('Test Laptop');
+      expect(response.body.searchTerm).toBe('laptop');
     });
 
     test('should filter case-insensitively', async () => {
@@ -72,8 +85,17 @@ describe('Items Routes', () => {
         .get('/api/items?q=LAPTOP')
         .expect(200);
 
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0].name).toBe('Test Laptop');
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].name).toBe('Test Laptop');
+    });
+
+    test('should search across name and category', async () => {
+      const response = await request(app)
+        .get('/api/items?q=electronics')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(2); // Laptop and Headphones are Electronics
+      expect(response.body.data.every(item => item.category === 'Electronics')).toBe(true);
     });
 
     test('should combine search and limit parameters', async () => {
@@ -81,8 +103,9 @@ describe('Items Routes', () => {
         .get('/api/items?q=test&limit=2')
         .expect(200);
 
-      expect(response.body).toHaveLength(2);
-      expect(response.body.every(item => item.name.toLowerCase().includes('test'))).toBe(true);
+      expect(response.body.data).toHaveLength(2);
+      expect(response.body.data.every(item => item.name.toLowerCase().includes('test'))).toBe(true);
+      expect(response.body.pagination.total).toBe(3);
     });
 
     test('should return empty array when no items match search', async () => {
@@ -90,8 +113,66 @@ describe('Items Routes', () => {
         .get('/api/items?q=nonexistent')
         .expect(200);
 
-      expect(response.body).toHaveLength(0);
-      expect(response.body).toEqual([]);
+      expect(response.body.data).toHaveLength(0);
+      expect(response.body.data).toEqual([]);
+      expect(response.body.pagination.total).toBe(0);
+    });
+
+    // Pagination Tests
+    test('should handle pagination correctly', async () => {
+      const response = await request(app)
+        .get('/api/items?page=1&limit=2')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(2);
+      expect(response.body.pagination).toEqual({
+        page: 1,
+        limit: 2,
+        total: 3,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPrevPage: false
+      });
+    });
+
+    test('should handle second page correctly', async () => {
+      const response = await request(app)
+        .get('/api/items?page=2&limit=2')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(1); // Only 1 item on page 2
+      expect(response.body.pagination).toEqual({
+        page: 2,
+        limit: 2,
+        total: 3,
+        totalPages: 2,
+        hasNextPage: false,
+        hasPrevPage: true
+      });
+    });
+
+    test('should handle invalid page numbers gracefully', async () => {
+      const response = await request(app)
+        .get('/api/items?page=0')
+        .expect(200);
+
+      expect(response.body.pagination.page).toBe(1); // Should default to page 1
+    });
+
+    test('should enforce max limit of 100', async () => {
+      const response = await request(app)
+        .get('/api/items?limit=150')
+        .expect(200);
+
+      expect(response.body.pagination.limit).toBe(100); // Should cap at 100
+    });
+
+    test('should trim search queries', async () => {
+      const response = await request(app)
+        .get('/api/items?q=%20%20laptop%20%20') // URL encoded spaces
+        .expect(200);
+
+      expect(response.body.searchTerm).toBe('laptop');
     });
 
     test('should handle file read errors gracefully', async () => {

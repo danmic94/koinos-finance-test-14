@@ -20,19 +20,47 @@ async function writeData(data) {
 router.get('/', async (req, res, next) => {
   try {
     const data = await readData();
-    const { limit, q } = req.query;
+    let { limit, page, q } = req.query;
     let results = data;
 
-    if (q) {
-      // Simple substring search (sub‑optimal)
-      results = results.filter(item => item.name.toLowerCase().includes(q.toLowerCase()));
+    // Search functionality - search across name and category
+    if (q && q.trim()) {
+      const searchTerm = q.trim().toLowerCase();
+      results = results.filter(item => 
+        item.name.toLowerCase().includes(searchTerm) ||
+        item.category.toLowerCase().includes(searchTerm)
+      );
     }
 
-    if (limit) {
-      results = results.slice(0, parseInt(limit));
-    }
+    // Get total count before pagination for metadata
+    const total = results.length;
 
-    res.json(results);
+    // Pagination logic
+    const pageNum = Math.max(1, parseInt(page) || 1); // Default to page 1
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 10)); // Default 10, max 100
+    const offset = (pageNum - 1) * limitNum;
+    
+    // Apply pagination
+    const paginatedResults = results.slice(offset, offset + limitNum);
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(total / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    // Return data with pagination metadata
+    res.json({
+      data: paginatedResults,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage
+      },
+      ...(q && { searchTerm: q.trim() }) // Include search term if provided
+    });
   } catch (err) {
     next(err);
   }
