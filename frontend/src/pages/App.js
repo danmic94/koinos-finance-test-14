@@ -4,6 +4,7 @@ import Items from './Items';
 import ItemDetail from './ItemDetail';
 import { DataProvider } from '../state/DataContext';
 import ErrorBoundary from '../components/ErrorBoundary';
+import PageNotFound from './NotFound';
 
 function App() {
   // Enhanced error handling callbacks
@@ -44,6 +45,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Items />} />
               <Route path="/items/:id" element={<ItemDetail />} />
+              <Route path="*" element={<PageNotFound />} />
             </Routes>
           </main>
         </div>
