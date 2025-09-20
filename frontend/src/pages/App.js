@@ -6,8 +6,30 @@ import { DataProvider } from '../state/DataContext';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 function App() {
+  // Enhanced error handling callbacks
+  const handleError = (error, errorInfo, errorDetails) => {
+    // Custom error handling logic
+    console.log('App level error handler:', { error, errorInfo, errorDetails });
+    
+    // Could send to analytics, show toast notifications, etc.
+    // Example: analytics.track('error_boundary_triggered', errorDetails);
+  };
+
+  const handleReportError = (error, errorId) => {
+    // Handle error reporting
+    console.log('User requested error report:', { error, errorId });
+    
+    // Example: Open support chat, send to help desk, etc.
+    // window.Intercom?.('showNewMessage', `Error Report: ${errorId}`);
+  };
+
   return (
-    <ErrorBoundary fallback={<p className="text-red-500 p-4">Something went wrong</p>}>
+    <ErrorBoundary 
+      maxRetries={2}
+      onError={handleError}
+      onReportError={handleReportError}
+      userId="demo-user" // Could come from auth context
+    >
       <DataProvider>
         <div className="min-h-screen bg-gray-50">
           <nav className="bg-white shadow-sm border-b border-gray-200 p-4">

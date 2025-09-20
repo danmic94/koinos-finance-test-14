@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { List } from 'react-window';
 import { useData } from '../state/DataContext';
-import { Link } from 'react-router-dom';
-import placeholderProduct from '../assets/images/placeholder-product.jpg';
+import ItemCard from '../components/ItemCard';
 
 function Items() {
   const { items, fetchItems } = useData();
@@ -40,43 +40,96 @@ function Items() {
     };
   }, [items.length, fetchItems, isLoading]); // Proper dependencies
 
-  if (!items.length) return (
-    <div className="flex justify-center items-center py-8">
-      <p className="text-gray-600">Loading...</p>
-    </div>
-  );
+  // Simple row component that shows 4 items per row
+  const Row = ({ index, style }) => {
+    // Add safety checks
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return null;
+    }
+
+    const startIndex = index * 4;
+    const rowItems = items.slice(startIndex, startIndex + 4).filter(item => item); // Filter out any null/undefined items
+    
+    if (rowItems.length === 0) {
+      return null;
+    }
+    
+    return (
+      <div style={style || {}}>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-4 md:gap-y-0 lg:gap-x-8 mb-10">
+          {rowItems.map((item, itemIndex) => (
+            <ItemCard 
+              key={item?.id || `item-${startIndex + itemIndex}`} 
+              item={item} 
+              index={startIndex + itemIndex} 
+              count={items.length} 
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Safety check for items array
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    );
+  }
+
+  // Calculate number of rows (4 items per row)
+  const rowCount = Math.ceil(items.length / 4);
+  
+  // If there are very few items, just render normally without virtualization
+  if (items.length <= 8) {
+    return (
+      <div className="bg-white">
+        <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24 lg:max-w-7xl lg:px-8">
+          <div className="md:flex md:items-center md:justify-between">
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900">Trending products</h2>
+            <p className="text-sm text-gray-500 mt-2 md:mt-0">
+              {items.length} {items.length === 1 ? 'product' : 'products'}
+            </p>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-4 md:gap-y-0 lg:gap-x-8">
+            {items.map((item, index) => (
+              <ItemCard 
+                key={item?.id || `item-${index}`} 
+                item={item} 
+                index={index} 
+                count={items.length} 
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="bg-white">
       <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24 lg:max-w-7xl lg:px-8">
         <div className="md:flex md:items-center md:justify-between">
           <h2 className="text-2xl font-bold tracking-tight text-gray-900">Trending products</h2>
+          <p className="text-sm text-gray-500 mt-2 md:mt-0">
+            {items.length} {items.length === 1 ? 'product' : 'products'}
+          </p>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-4 md:gap-y-0 lg:gap-x-8">
-          {items.map((item, index) => {
-            
-            return(
-            <div key={item.id} className="group relative">
-              <div className="h-56 w-full overflow-hidden rounded-md bg-gray-200 group-hover:opacity-75 lg:h-72 xl:h-80">
-                <img alt={""} src={placeholderProduct} className="size-full object-cover" />
-              </div>
-              <h3 className="mt-4 text-sm text-gray-700">
-              <Link 
-                  key={item.id}
-                  to={`/items/${item.id}`}
-                  className={`block p-4 hover:bg-gray-50 transition-colors ${
-                    index !== items.length - 1 ? 'border-b border-gray-200' : ''
-                  }`}
-                >
-                  <span className="absolute inset-0" />
-                  {item.name}
-                </Link>
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">{item.category}</p>
-              <p className="mt-1 text-sm font-medium text-gray-900">{item.price}</p>
-            </div>
-          )})}
+        <div className="mt-6">
+          {rowCount > 0 && (
+            <List
+              height={600} // Fixed height for scrollable area
+              itemCount={rowCount}
+              itemSize={400} // Height per row (including items + gap)
+              width="100%"
+            >
+              {Row}
+            </List>
+          )}
         </div>
       </div>
     </div>
