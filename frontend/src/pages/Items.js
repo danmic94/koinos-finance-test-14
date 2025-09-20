@@ -1,32 +1,39 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { List } from 'react-window';
 import { useData } from '../state/DataContext';
+import { useDebounce } from '../hooks/useDebounce';
 import ItemCard from '../components/ItemCard';
+import SearchInput from '../components/SearchInput';
+import Pagination from '../components/Pagination';
 
 function Items() {
-  const { items, fetchItems } = useData();
+  const { items, pagination, isLoading, fetchItems } = useData();
   const abortControllerRef = useRef(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
+  
+  // Debounce search input to avoid too many API calls
+  const debouncedSearch = useDebounce(searchInput, 400);
 
+  // Fetch items when page or search changes
   useEffect(() => {
     const loadItems = async () => {
-      // Avoid duplicate requests if already loading or if items exist
-      if (isLoading || items.length > 0) {
-        return;
-      }
-
       try {
-        setIsLoading(true);
         // Create new AbortController for this request
         abortControllerRef.current = new AbortController();
-        await fetchItems(abortControllerRef.current.signal);
+        
+        await fetchItems(
+          {
+            page: currentPage,
+            limit: 12, // Nice grid layout with 12 items (3 rows of 4)
+            search: debouncedSearch
+          },
+          abortControllerRef.current.signal
+        );
       } catch (error) {
         // Don't log errors for aborted requests
         if (error.name !== 'AbortError') {
           console.error(error);
         }
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -38,99 +45,97 @@ function Items() {
         abortControllerRef.current.abort();
       }
     };
-  }, [items.length, fetchItems, isLoading]); // Proper dependencies
+  }, [currentPage, debouncedSearch, fetchItems]);
 
-  // Simple row component that shows 4 items per row
-  const Row = ({ index, style }) => {
-    // Add safety checks
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return null;
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
     }
+  }, [debouncedSearch]); // Only depend on debouncedSearch, not currentPage
 
-    const startIndex = index * 4;
-    const rowItems = items.slice(startIndex, startIndex + 4).filter(item => item); // Filter out any null/undefined items
-    
-    if (rowItems.length === 0) {
-      return null;
-    }
-    
-    return (
-      <div style={style || {}}>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-4 md:gap-y-0 lg:gap-x-8 mb-10">
-          {rowItems.map((item, itemIndex) => (
-            <ItemCard 
-              key={item?.id || `item-${startIndex + itemIndex}`} 
-              item={item} 
-              index={startIndex + itemIndex} 
-              count={items.length} 
-            />
-          ))}
-        </div>
-      </div>
-    );
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    // Scroll to top when changing pages
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Safety check for items array
-  if (!items || !Array.isArray(items) || items.length === 0) {
+  // Loading state
+  if (isLoading && items.length === 0) {
     return (
-      <div className="flex justify-center items-center py-8">
-        <p className="text-gray-600">Loading...</p>
+      <div className="bg-white">
+        <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24 lg:max-w-7xl lg:px-8">
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center">
+              <svg className="animate-spin h-8 w-8 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p className="text-gray-600">Loading products...</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
-  // Calculate number of rows (4 items per row)
-  const rowCount = Math.ceil(items.length / 4);
-  
-  // If there are very few items, just render normally without virtualization
-  if (items.length <= 8) {
-    return (
-      <div className="bg-white">
-        <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24 lg:max-w-7xl lg:px-8">
-          <div className="md:flex md:items-center md:justify-between">
+  return (
+    <div className="bg-white">
+      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24 lg:max-w-7xl lg:px-8">
+        {/* Header with search */}
+        <div className="md:flex md:items-center md:justify-between mb-8">
+          <div>
             <h2 className="text-2xl font-bold tracking-tight text-gray-900">Trending products</h2>
-            <p className="text-sm text-gray-500 mt-2 md:mt-0">
-              {items.length} {items.length === 1 ? 'product' : 'products'}
+            {pagination && (
+              <p className="text-sm text-gray-500 mt-2">
+                {pagination.total} {pagination.total === 1 ? 'product' : 'products'}
+                {debouncedSearch && ` found for "${debouncedSearch}"`}
+              </p>
+            )}
+          </div>
+          
+          <div className="mt-4 md:mt-0">
+            <SearchInput
+              value={searchInput}
+              onChange={setSearchInput}
+              isLoading={isLoading}
+              placeholder="Search products or categories..."
+            />
+          </div>
+        </div>
+
+        {/* Results */}
+        {items.length === 0 ? (
+          <div className="text-center py-12">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">No products found</h3>
+            <p className="mt-2 text-gray-500">
+              {debouncedSearch 
+                ? `No products match "${debouncedSearch}". Try a different search term.`
+                : "No products available at the moment."
+              }
             </p>
           </div>
-
-          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-4 md:gap-y-0 lg:gap-x-8">
+        ) : (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-4 md:gap-y-0 lg:gap-x-8">
             {items.map((item, index) => (
               <ItemCard 
                 key={item?.id || `item-${index}`} 
                 item={item} 
                 index={index} 
-                count={items.length} 
+                count={pagination?.total || items.length} 
               />
             ))}
           </div>
-        </div>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="bg-white">
-      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24 lg:max-w-7xl lg:px-8">
-        <div className="md:flex md:items-center md:justify-between">
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">Trending products</h2>
-          <p className="text-sm text-gray-500 mt-2 md:mt-0">
-            {items.length} {items.length === 1 ? 'product' : 'products'}
-          </p>
-        </div>
+        )}
 
-        <div className="mt-6">
-          {rowCount > 0 && (
-            <List
-              height={600} // Fixed height for scrollable area
-              itemCount={rowCount}
-              itemSize={400} // Height per row (including items + gap)
-              width="100%"
-            >
-              {Row}
-            </List>
-          )}
-        </div>
+        {/* Pagination */}
+        <Pagination 
+          pagination={pagination}
+          onPageChange={handlePageChange}
+        />
       </div>
     </div>
   );
